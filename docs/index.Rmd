@@ -1,0 +1,478 @@
+---
+title: "Regression analysis"
+output:
+  html_document: default
+  word_document: default
+date: "`r Sys.Date()`"
+---
+
+```{r,include=FALSE}
+library(readxl)
+library(tidyverse)
+library(caret)
+library(car)
+library(kableExtra)
+require(GGally)
+require(corrplot)
+```
+
+## Multiple  Linear Regression model
+# Objective:
+
+Our goal is to identify an effective regression model for predicting annual earnings.
+
+```{r, include=FALSE}
+project<-read_excel("project.xlsx")
+head(project)
+```
+
+# Checking for missing values in the data
+```{r}
+#check for missing values
+colSums(is.na(project))
+```
+Including Education in the analysis will result in a loss of information(i.e. reducing the sample size by 409). We therefore exclude the variable Education  in this analysis.
+
+```{r}
+#Removing the education Variable
+wages <- project[, !names(project) %in% "Education"]
+```
+
+```{r,include=FALSE}
+# Recoding the categorical variables
+
+#Gender
+wages$Gender<-as.factor(wages$Gender)
+levels(wages$Gender)<-c("male","female")
+
+#service
+wages$service<-as.factor(wages$service)
+levels(wages$service)<-c("under 2","2 to 5","6 to 10","10+")
+
+#Job category
+wages$JobCategory<-as.factor(wages$JobCategory)
+levels(wages$JobCategory)<-c("management","professional","assistant professional","clerical")
+
+#sector
+wages$Sector<-as.factor(wages$Sector)
+levels(wages$Sector)<-c("Industry","Construction & Transport","Finance","Health and education")
+```
+
+# Fitting the Regression model
+```{r}
+model_wage<-lm(Annual_Earnings~.,data=wages)
+summary(model_wage)
+```
+
+Although the  model explains only 39% of variances in the Annual Earnings, the P-value of <2.2e-16 shows that the model is statistically significant. It can seen seen that  the variable Age and service years of 2 to 5 years  and 10+ are not significant in the model. We further confirm the assumptions of Regression are met.
+
+# Diagnostic plots
+```{r,echo=FALSE}
+# Compute the residuals of the Annual Earnings prediction model
+model_res <- rstandard(model_wage)
+
+# Create a histogram to visualize the distribution of residuals
+hist(model_res)
+
+# Create a plot to visualize the 'model_wage' predictions
+plot(model_wage)
+```
+
+Ideally, when we examine the residual plot, we hope to see no discernible pattern in the residuals. In other words, the red line (representing residuals) should be approximately horizontal and centered around zero in the residual vs. fitted plot. However, in this case, the residual plot reveals some issues:
+
+Non-Normality Assumption: The histogram of standardized residuals indicates that the residuals do not follow a perfect normal distribution. They exhibit deviations from normality, which is an assumption of linear regression.
+
+Heteroscedasticity (Non-Constant Variance): The spread of residuals appears to vary across the range of fitted values, suggesting heteroscedasticity. This means that the variability of errors is not consistent, violating another important assumption of linear regression.
+from the plots 
+
+Model Improvement:
+
+To address these issues, we can take the following steps:
+
+Logarithmic Transformation: We can apply a logarithmic transformation to the dependent variable, this transformation can help stabilize variance and make the relationship between predictors and the response variable more linear.
+
+# Fitting the linear regression model with a logarithmic transformation
+```{r,echo=FALSE}
+# Fit a linear regression model with a logarithmic transformation of 'Annual_Earnings'
+model.wage <- lm(log(Annual_Earnings) ~ ., data = wages)
+
+# Display a summary of the regression model
+summary(model.wage)
+```
+
+#Diagnostic plots
+```{r,echo=FALSE}
+# Compute the residuals of the transformed Annual Earnings prediction model
+model.res <- rstandard(model.wage)
+
+# Create a histogram to visualize the distribution of residuals
+hist(model.res)
+
+# Create a plot to visualize the 'model_.age' predictions
+plot(model.wage)
+```
+
+Model Improvement with Logarithmic Transformation:
+
+After applying a logarithmic transformation to the dependent variable ('Annual_Earnings'), we observed a significant improvement in the model's performance. Notably, the coefficient of determination, often denoted as $R^2$, increased to 64%. This indicates that our model now explains approximately 64% of the variability in the data, representing a substantial enhancement in predictive power.
+
+Assumption Validation:
+
+Furthermore, the diagnostic plots of the model, including the residual vs. fitted values plot and the histogram of standardized residuals, reveal important insights. The transformation has brought the model closer to meeting the assumptions of linear regression:
+
+Normality Assumption: The histogram of standardized residuals now exhibits a distribution that approximates normality more closely. This aligns with the assumption that the residuals should follow a normal distribution, improving the model's validity.
+
+Constant Variance (Homoscedasticity): The spread of residuals across the range of fitted values appears to be more consistent, indicating that the model's variance assumption is better satisfied. This is crucial for reliable predictions and valid statistical inferences.
+
+Overall, the logarithmic transformation of the dependent variable has led to a model that not only explains a substantial portion of the data's variability but also aligns more closely with the fundamental assumptions of linear regression. This enhanced model provides more reliable predictions and a stronger foundation for drawing meaningful insights from the data.
+
+
+**TESTING FOR MULTICOLLINEARITY**
+```{r}
+vif(model.wage)
+```
+
+There is no presence of multicollinearity  since the VIFs < 2 meaning that there is moderate correlation between a given predictor variable and other predictor variables in the model.
+
+```{r}
+outliers <- boxplot(wages$Annual_Earnings, plot=FALSE)$out
+##remove the outliers
+wages_clean<- wages[-which(wages$Annual_Earnings %in% outliers),]
+```
+
+# Refitting the model without the age variable
+```{r,echo=FALSE}
+# Fit a linear regression model with a logarithmic transformation of 'Annual_Earnings'
+model2.wage <- lm(log(Annual_Earnings) ~ No_Of_Weeks+Gender+Time_paid_employ+WeeklyHours+service+JobCategory+Sector, data = wages)
+
+# Display a summary of the regression model
+summary(model2.wage)
+```
+
+
+
+**PARTIAL F TEST**
+Next, using the partial F.test, we decide if the categorical variables are worth including in the regression model.
+```{r,echo=FALSE}
+# Reduced Model
+model_reduced <- lm(log(Annual_Earnings) ~ No_Of_Weeks + WeeklyHours + Time_paid_employ, data = wages)
+
+# Full Models
+
+# Gender
+model_full1 <- lm(log(Annual_Earnings) ~ No_Of_Weeks + Gender + WeeklyHours + Time_paid_employ, data = wages)
+
+# Sector
+model_full2 <- lm(log(Annual_Earnings) ~ No_Of_Weeks + WeeklyHours + Sector + Time_paid_employ, data = wages)
+
+# Job Category
+model_full3 <- lm(log(Annual_Earnings) ~ No_Of_Weeks + WeeklyHours + JobCategory + Time_paid_employ, data = wages)
+
+# Service
+model_full4 <- lm(log(Annual_Earnings) ~ No_Of_Weeks + WeeklyHours + service + Time_paid_employ, data = wages)
+
+# Partial F-Tests
+# Compare the reduced model to each full model using the ANOVA (Analysis of Variance) test.
+
+# Gender
+anova_gender <- anova(model_reduced, model_full1)
+
+# Sector
+anova_sector <- anova(model_reduced, model_full2)
+
+# Job Category
+anova_job_category <- anova(model_reduced, model_full3)
+
+# Service
+anova_service <- anova(model_reduced, model_full4)
+
+# Display the ANOVA results for Gender
+print(anova_gender)
+
+# Display the ANOVA results for Sector
+print(anova_sector)
+
+# Display the ANOVA results for Job Category
+print(anova_job_category)
+
+# Display the ANOVA results for Service
+print(anova_service)
+
+
+
+```
+The results of the partial F-tests indicate that the inclusion of categorical variables significantly enhances the model's fit. These categorical variables contribute substantially to predicting the annual earnings of the workers.
+
+# Final Regression Model
+```{r,echo=FALSE}
+# Fit a linear regression model with a logarithmic transformation of 'Annual_Earnings'
+wage_model <- lm(log(Annual_Earnings) ~ No_Of_Weeks+Gender+Time_paid_employ+WeeklyHours+service+JobCategory+Sector, data = wages)
+
+# Display a summary of the regression model
+summary(wage_model)
+
+#Diagnostic plots
+# Compute the residuals of the transformed Annual Earnings prediction model
+wage_model.res <- rstandard(wage_model)
+
+# Create a histogram to visualize the distribution of residuals
+hist(wage_model.res)
+
+# Create a plot to visualize the 'model_.age' predictions
+plot(wage_model)
+```
+```{r}
+
+round((exp(wage_model$coefficients)-1)*100,3)
+```
+Coefficient Interpretation:
+- No_Of_Weeks: An additional week of work  will lead to a 3% increase in annual earnings controlling for other variables.
+
+- Genderfemale: Female employees earn on average 16% less in annual earnings compared to males, controlling for other variables.
+
+- Time_paid_employ: An additional year of experience leads to on average a 1% increase in annual earnings, controlling for other variables.
+
+- WeeklyHours: An additional hour worked per week will lead to a 4.2% increase in annual earnings on average, controlling for other variables.
+
+- service2 to 5: Compared to employees with less than 2 years of service, having 2 to 5 years of service is associated with a 4.8% increase in annual earnings on average, controlling for other variables. However, this difference is not statistically significant (p-value > 0.05).
+
+- service6 to 10 : Compared to employees  with less than 2 years of service, Having 6 to 10 years of service is associated with on average  a 23.2% increase in annual earnings, controlling for other variables. this difference is statistically significant.
+
+- service10+ : Compared to employees  with less than 2 years of service, having more than 10 years of service is associated with on average a 9.59% increase in annual earnings, but this difference is not statistically significant.
+
+- JobCategoryprofessional : Compared to employees in the management category , being in a professional job category is associated with  on average a 12.5%  decrease in  annual earnings, controlling for other variables.
+
+- JobCategoryassistant professional: Compared to employees in the management category, Being in an assistant professional job category is associated with on average a 26.31% decrease  in  annual earnings, controlling for other variables.
+
+- JobCategoryclerical: Employees in a clerical job category is associated with on average a decrease 41.4% in annual earnings compared to employees in the management category, controlling for other variables.
+
+- SectorConstruction & Transport: Employees working in the Construction & Transport sector is associated with on average a 13.4% decrease in  annual earnings compared to Employees in the Industry sector, controlling for other variables..
+
+- SectorFinance: Employees working in the Finance sector is associated with on average a 19.9% increase in  annual earnings compared to Employees in the Industry sector, controlling for other variables.
+
+- SectorHealth and education: Employees working in the Health and education  sector is associated with on average a 19.9% increase in  annual earnings compared to Employees in the Industry sector, controlling for other variables.
+
+The adjusted R-squared value of 0.629 indicates that approximately 62.9% of the variability in  annual earnings is explained by this transformed model. The F-statistic is highly significant (p-value < 0.001), suggesting that at least one of the predictor variables is related to the annual earnings.
+
+
+## Assessing the predictive performance of the regression model
+```{r}
+# Set the seed for reproducibility
+set.seed(123)
+
+# Define the training control parameters
+train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
+# Train a linear regression model using the specified predictors
+model_val <- train(
+  log(Annual_Earnings) ~ No_Of_Weeks + Gender + Time_paid_employ + WeeklyHours + service + JobCategory + Sector, 
+  data = wages,
+  method = "lm",
+  trControl = train.control
+)
+
+# Print and summarize the results of the model validation
+print(model_val)
+
+```
+The low RMSE obtained of 0.5065 and $R^2$= 0.62 shows that the model performed well in predicting annual earnings.  
+
+The diagnostic plot of the transformed linear regression model reveals the presence of outlying values, indicating that some data points may have a disproportionate influence on the model. To address this issue and improve the model's robustness, we have opted to fit a robust regression model to predict annual earnings. This robust regression approach is better equipped to handle outliers and provide more reliable predictions in the presence of such data anomalies.
+
+```{r}
+library(robustbase)
+robust_model<-lmrob(log(Annual_Earnings) ~ No_Of_Weeks+Gender+Time_paid_employ+WeeklyHours+service+JobCategory+Sector, data = wages,control=lmrob.control(max.it=100))
+summary(robust_model)
+```
+
+In contrast, the robust regression model yields promising results, with an R-squared value of 63%, signifying that it explains a substantial portion of the data's variability. What sets it apart is its superior performance in predicting annual earnings compared to the ordinary multiple linear regression models. This is evident from the significantly lower residual standard error of 0.4206, which outperforms the multiple regression model's value of 0.5025.
+
+## Logistic Regression
+# Objective:
+The primary objective of this project is to develop a logistic regression model considering Age, DebtRatio, YearlyIncome, and LatePayment, as potential predictors for credit default.
+```{r,echo=FALSE}
+credit<-read_excel("Credit Default.xlsx")
+head(credit)
+
+```
+# Check for missing values
+```{r}
+colSums(is.na(credit))
+```
+There are no missing values in the data , next we proceed with exploratory analysis
+
+Exploratory Analysis
+```{r}
+cred <- as_tibble(credit[,c(3,4,5)])
+cred.sum <- cred %>%
+  summarise(across(where(is.numeric),list(min = ~min(.), 
+                      q25 = ~quantile(., 0.25), 
+                      median = ~median(.), 
+                      q75 = ~quantile(., 0.75), 
+                      max = ~max(.),
+                      mean = ~mean(.), 
+                      sd = ~sd(.))))
+
+
+# reshape the output for presentation in a table
+cred.sum %>% gather(stat, val) %>%
+  separate(stat, into = c("var", "stat"), sep = "_") %>%
+  spread(stat, val) %>%
+  select(var, min, q25, median, q75, max, mean, sd) %>%
+  kable() %>%
+  kable_styling()
+```
+To account for variation in the numerical variables and ensure consistent scales, we intend to standardize the variables.
+```{r,include=FALSE}
+StDev = apply(cred, 2, sd)
+
+Credit = sweep(cred, 2, StDev, "/")
+```
+
+```{r,echo=FALSE}
+Cred <- as_tibble(Credit)
+Cred.sum <- Cred %>%
+  summarise(across(where(is.numeric),list(min = ~min(.), 
+                      q25 = ~quantile(., 0.25), 
+                      median = ~median(.), 
+                      q75 = ~quantile(., 0.75), 
+                      max = ~max(.),
+                      mean = ~mean(.), 
+                      sd = ~sd(.))))
+
+
+# reshape the output for presentation in a table
+Cred.sum %>% gather(stat, val) %>%
+  separate(stat, into = c("var", "stat"), sep = "_") %>%
+  spread(stat, val) %>%
+  select(var, min, q25, median, q75, max, mean, sd) %>%
+  kable() %>%
+  kable_styling()
+```
+
+```{r,include=FALSE}
+## recoding the categorical variables
+
+#default
+Cred$Default<-as.factor(credit$Default)
+levels(credit$Default)<-c("no","yes")
+
+
+#late repayment
+Cred$LatePayment<-as.factor(credit$LatePayment)
+levels(credit$LatePayment)<-c("no","yes")
+```
+
+```{r}
+# Create a pairs plot to visualize relationships between variables
+ggpairs(data = Cred[,c(1,2,3)], upper = list(continuous = "blank", discrete = "blank"), lower=list(continuous = "points", discrete="blank"), diag = list(continuous = "densityDiag", discrete="blankDiag"), ggplot2::aes(colour=Cred$Default)) + theme_bw()
+
+
+# Calculate the correlation matrix to assess the strength and direction of relationships
+correlation_matrix <- cor(Cred[,c(1,2,3)])
+print(correlation_matrix)
+```
+# Boxplots
+```{r}
+# Create boxplots for Age, DebtRatio, and YearlyIncome by Default status
+ggplot(data = Cred, aes(x = Default, y = Age)) + geom_boxplot() + theme_bw() + ggtitle('Age')
+
+ggplot(data = Cred, aes(x = Default, y = DebtRatio)) + geom_boxplot() + theme_bw() + ggtitle('DebtRatio')
+
+ggplot(data = Cred, aes(x = Default, y = YearlyIncome)) + geom_boxplot() + theme_bw() + ggtitle('YearlyIncome')
+
+# Identify outliers for Age and DebtRatio
+out <- boxplot(Cred$Age, plot = FALSE)$out
+out2 <- boxplot(Cred$DebtRatio, plot = FALSE)$out
+
+
+```
+
+The exploratory analysis indicates the absence of multicollinearity, as there is no significant correlation among the numerical variables. Additionally, it reveals the presence of only slight to moderate outliers in the data.
+
+# Fitting the Credit model
+```{r}
+##fit the logistic regression model
+model<-glm(Default~Age+DebtRatio+YearlyIncome+LatePayment,data=Cred,family = "binomial")
+summary(model)
+
+#calculate odds ratio
+exp(cbind(coef(model), confint(model)))
+
+#Variable Importance
+varImp(model)
+
+```
+Odds ratio interpretation:
+
+- Age (0.6567064): For each one-unit increase in age, the odds of default decrease by a factor of approximately 0.6567, holding all other variables constant. This suggests that older individuals are less likely to default compared to younger ones.
+
+- DebtRatio (1.0781788): For each one-unit increase in the debt ratio, the odds of default increase by a factor of approximately 1.0782, holding all other variables constant. However, the 95% CI includes 1. This suggests that the effect of DebtRatio on default may not be statistically significant.
+
+- YearlyIncome (0.7881539): For each one-unit increase in yearly income, the odds of default decrease by a factor of approximately 0.7882, holding all other variables constant. This implies that individuals with higher yearly incomes are less likely to default.
+
+- LatePayment (yes) (6.4232850): This is the estimated odds ratio for individuals with a late payment history (LatePayment = 1) compared to those with no late payment history (LatePayment = 0). It suggests that individuals with a late payment history are approximately 6.4233 times more likely to default than those with no late payment history.
+
+In summary, the variable importance results suggest that Age and LatePayment (yes) are the most influential predictors of default, while DebtRatio has relatively low importance in the model. YearlyIncome falls in between, indicating moderate importance. 
+
+# Model Validity and Classification performance
+```{r}
+# Set the seed for reproducibility
+set.seed(123)
+
+# Define the training control parameters
+train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
+# Train a linear regression model using the specified predictors
+model_val2 <- train(
+  Default~Age+DebtRatio+YearlyIncome+LatePayment,
+  family = "binomial",
+  data = Cred,
+  method = "glm",
+  trControl = train.control
+)
+
+# Print and summarize the results of the model validation
+print(model_val2)
+```
+In summary, the GLM has an accuracy of about 72.89%, which means it is reasonably good at predicting credit default based on the given predictor variables. However, the Kappa statistic of 0.3855585 suggests that there is some room for improvement, and the model's performance is better than chance but not extremely strong.
+
+The analysis is repeated with outliers removed to observe whether there will be an improvement in the performance metrics of the model.
+```{r}
+# Remove rows in the 'Cred' dataset where 'Age' values are identified as outliers based on the 'out' list
+Cred <- Cred[-which(Cred$Age %in% out),]
+
+# Remove rows in the 'Cred' dataset where 'DebtRatio' values are identified as outliers based on the 'out2' list
+Cred <- Cred[-which(Cred$DebtRatio %in% out2),]
+
+```
+
+```{r}
+##fit the logistic regression model without outliers
+
+model2<-glm(Default~Age+DebtRatio+YearlyIncome+LatePayment,data=Cred,family = "binomial")
+summary(model2)
+
+varImp(model2)
+
+#Cross-Validation
+# Set the seed for reproducibility
+set.seed(123)
+
+# Define the training control parameters
+train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
+# Train a linear regression model using the specified predictors
+model_val3 <- train(
+  Default~Age+DebtRatio+YearlyIncome+LatePayment,
+  family = "binomial",
+  data = Cred,
+  method = "glm",
+  trControl = train.control
+)
+
+# Print and summarize the results of the model validation
+print(model_val3)
+```
+
+There is no statistically significant difference between the Credit Default model (accuracy: 0.734) without outliers and the model without outliers (accuracy: 0.728).
